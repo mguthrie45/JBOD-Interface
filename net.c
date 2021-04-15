@@ -23,6 +23,7 @@ static bool nread(int fd, int len, uint8_t *buf) {
     if (rd <= 0) {
       return false;
     }
+    n += rd;
   }
   return true;
 }
@@ -36,6 +37,7 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
     if (wt <= 0) {
       return false;
     }
+    n += wt;
   }
   return true;
 }
@@ -43,6 +45,22 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
 /* attempts to receive a packet from fd; returns true on success and false on
  * failure */
 static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
+  uint8_t header[HEADER_LEN];
+  bool hrd = nread(fd, HEADER_LEN, header);
+  if (!hrd) {printf("error recieving header.\n"); return false;}
+
+  uint16_t length = (uint16_t)(header[0]<<8) + header[1];
+  *op = (uint32_t)(header[2]<<24)+(header[3]<<16)+(header[4]<<8)+header[5];
+  *ret = (uint16_t)(header[6]<<8)+header[7];
+
+  printf("length: %d  opcode: %d  return: %d  \n", length, *op, *ret);
+
+  int cmd = get_cmd_from_op(*op);
+  if (cmd == JBOD_READ_BLOCK) {    
+    bool brd = nread(fd, JBOD_BLOCK_SIZE, block);
+    if (!brd) {printf("error recieving block.\n"); return false;}
+  }
+  return true;
 }
 
 /* attempts to send a packet to sd; returns true on success and false on
@@ -74,6 +92,10 @@ bool jbod_connect(const char *ip, uint16_t port) {
   return true;
 }
 
+int get_cmd_from_op(uint32_t op) {
+  return (int)op>>26;
+}
+
 /* disconnects from the server and resets cli_sd */
 void jbod_disconnect(void) {
   close(cli_sd);
@@ -83,5 +105,4 @@ void jbod_disconnect(void) {
 /* sends the JBOD operation to the server and receives and processes the
  * response. */
 int jbod_client_operation(uint32_t op, uint8_t *block) {
-
 }
