@@ -12,6 +12,7 @@
 #include "jbod.h"
 
 /* the client socket descriptor for the connection to the server */
+
 int cli_sd = -1;
 
 /* attempts to read n bytes from fd; returns true on success and false on
@@ -46,18 +47,17 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
  * failure */
 static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
   uint8_t header[HEADER_LEN];
-  bool hrd = nread(fd, HEADER_LEN, header);
+  bool hrd = nread(fd, HEADER_LEN, header), brd;
   if (!hrd) {printf("error recieving header.\n"); return false;}
 
-  uint16_t length = (uint16_t)(header[0]<<8) + header[1];
+  uint16_t len = (uint16_t)(header[0]<<8) + header[1];
   *op = (uint32_t)(header[2]<<24)+(header[3]<<16)+(header[4]<<8)+header[5];
   *ret = (uint16_t)(header[6]<<8)+header[7];
-
-  printf("length: %d  opcode: %d  return: %d  \n", length, *op, *ret);
-
-  int cmd = get_cmd_from_op(*op);
-  if (cmd == JBOD_READ_BLOCK) {    
-    bool brd = nread(fd, JBOD_BLOCK_SIZE, block);
+  
+  printf("Recieved Header with:\n length: %d\n op: %d\n ret: %d\n\n", len, *op, *ret);
+  
+  if (len == HEADER_LEN+JBOD_BLOCK_SIZE) {
+    brd = nread(fd, JBOD_BLOCK_SIZE, block);
     if (!brd) {printf("error recieving block.\n"); return false;}
   }
   return true;
@@ -66,6 +66,22 @@ static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
 /* attempts to send a packet to sd; returns true on success and false on
  * failure */
 static bool send_packet(int sd, uint32_t op, uint8_t *block) {
+  int cmd = get_cmd_from_op(op);
+  uint16_t len = htons(HEADER_LEN);
+  uint32_t op_send = htons(op);
+  uint8_t packet[HEADER_LEN+JBOD_BLOCK_SIZE];
+  bool wt;
+  
+  memcpy(&packet[2], &op_send, 4);
+  if (cmd-1 == JBOD_WRITE_BLOCK) {
+    len = HEADER_LEN+JBOD_BLOCK_SIZE;
+    len = htons(len);
+    memcpy(&packet[8], block, JBOD_BLOCK_SIZE);
+  }
+  memcpy(packet, &len, 2);
+
+  wt = nwrite(sd, len, packet);
+  return wt;
 }
 
 /* attempts to connect to server and set the global cli_sd variable to the
@@ -105,4 +121,18 @@ void jbod_disconnect(void) {
 /* sends the JBOD operation to the server and receives and processes the
  * response. */
 int jbod_client_operation(uint32_t op, uint8_t *block) {
+  uint16_t ret;
+  uint32_t rec_op;
+  printf("Want to send op %x and cmd %d\n", op, get_cmd_from_op(op));
+  bool sent = send_packet(cli_sd, op, block);
+  if (!sent) {
+    printf("send returned failure\n");
+    return false;
+  }
+  bool recv = recv_packet(cli_sd, &rec_op, &ret, block);
+  if (!recv || ret == -1) {
+    printf("recieve returned failure\n");
+    return false;
+  }
+  return true;
 }
