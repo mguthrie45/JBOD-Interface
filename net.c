@@ -54,7 +54,7 @@ static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
   *op = (uint32_t)(header[2]<<24)+(header[3]<<16)+(header[4]<<8)+header[5];
   *ret = (uint16_t)(header[6]<<8)+header[7];
   
-  printf("Recieved Header with:\n length: %d\n op: %d\n ret: %d\n\n", len, *op, *ret);
+  // printf("Recieved Header with:\n length: %d\n op: %d\n cmd: %d\n ret: %d\n\n", len, *op, get_cmd_from_op(*op), *ret);
   
   if (len == HEADER_LEN+JBOD_BLOCK_SIZE) {
     brd = nread(fd, JBOD_BLOCK_SIZE, block);
@@ -67,18 +67,18 @@ static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
  * failure */
 static bool send_packet(int sd, uint32_t op, uint8_t *block) {
   int cmd = get_cmd_from_op(op);
-  uint16_t len = htons(HEADER_LEN);
-  uint32_t op_send = htons(op);
+  uint16_t len = HEADER_LEN, nlen = htons(len);
+  uint32_t op_send = htonl(op);
   uint8_t packet[HEADER_LEN+JBOD_BLOCK_SIZE];
   bool wt;
   
-  memcpy(&packet[2], &op_send, 4);
-  if (cmd-1 == JBOD_WRITE_BLOCK) {
+  memcpy(&packet[2], &op_send, 4); //changing this to &op produces some results
+  if (cmd == JBOD_WRITE_BLOCK) {
     len = HEADER_LEN+JBOD_BLOCK_SIZE;
-    len = htons(len);
+    nlen = htons(len);
     memcpy(&packet[8], block, JBOD_BLOCK_SIZE);
   }
-  memcpy(packet, &len, 2);
+  memcpy(packet, &nlen, 2);
 
   wt = nwrite(sd, len, packet);
   return wt;
