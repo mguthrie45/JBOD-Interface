@@ -79,7 +79,6 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
     memcpy(&packet[8], block, JBOD_BLOCK_SIZE);
   }
   memcpy(packet, &nlen, 2);
-
   wt = nwrite(sd, len, packet);
   return wt;
 }
@@ -123,7 +122,7 @@ void jbod_disconnect(void) {
 int jbod_client_operation(uint32_t op, uint8_t *block) {
   uint16_t ret;
   uint32_t rec_op;
-  printf("Want to send op %x and cmd %d\n", op, get_cmd_from_op(op));
+  //printf("Want to send op %x and cmd %d\n", op, get_cmd_from_op(op));
   bool sent = send_packet(cli_sd, op, block);
   if (!sent) {
     printf("send returned failure\n");
@@ -134,5 +133,6 @@ int jbod_client_operation(uint32_t op, uint8_t *block) {
     printf("recieve returned failure\n");
     return false;
   }
+  //printf("recieved op %x with ret %d\n", rec_op, ret);
   return true;
 }

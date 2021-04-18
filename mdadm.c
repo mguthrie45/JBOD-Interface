@@ -6,6 +6,7 @@
 #include "mdadm.h"
 #include "jbod.h"
 #include "cache.h"
+#include "net.h"
 
 int MOUNTED = 0;
 
@@ -22,7 +23,8 @@ int mdadm_mount(void) {
     return -1;
   }
   uint32_t jbod_op = encode_op(JBOD_MOUNT, 0, 0);
-  jbod_operation(jbod_op, NULL);
+  //jbod_operation(jbod_op, NULL);
+  jbod_client_operation(jbod_op, NULL);
   MOUNTED = 1;
   return 1;
 }
@@ -32,7 +34,8 @@ int mdadm_unmount(void) {
     return -1;
   }
   uint32_t jbod_op = encode_op(JBOD_UNMOUNT, 0, 0);
-  jbod_operation(jbod_op, NULL);
+  //jbod_operation(jbod_op, NULL);
+  jbod_client_operation(jbod_op, NULL);
   MOUNTED = 0;
   return 1;
 }
@@ -53,8 +56,10 @@ uint32_t linearize_addr(int disk_num, int block_num, int offset) {
 int seek(int disk_num, int block_num) {
   uint32_t sd_op = encode_op(JBOD_SEEK_TO_DISK, disk_num, 0);
   uint32_t sb_op = encode_op(JBOD_SEEK_TO_BLOCK, 0, block_num);
-  jbod_operation(sd_op, NULL);
-  jbod_operation(sb_op, NULL);
+  //jbod_operation(sd_op, NULL);
+  //jbod_operation(sb_op, NULL);
+  jbod_client_operation(sd_op, NULL);
+  jbod_client_operation(sb_op, NULL);
   return 1;
 }
 
@@ -110,7 +115,8 @@ int mdadm_read(uint32_t addr, uint32_t len, uint8_t *buf) {
     
     if (cache_hit == -1) {
       rb_op = encode_op(JBOD_READ_BLOCK, 0, 0);
-      jbod_operation(rb_op, block_buf);
+      //jbod_operation(rb_op, block_buf);
+      jbod_client_operation(rb_op, block_buf);
       cache_insert(disk_num, block_num, block_buf);
       //printf("cache insert at (%i, %i) \n", disk_num, block_num);
     }
@@ -142,7 +148,8 @@ int mdadm_write(uint32_t addr, uint32_t len, const uint8_t *buf) {
 
     if (cache_hit == -1) {
       op = encode_op(JBOD_READ_BLOCK, 0, 0);
-      jbod_operation(op, block_buf);
+      //jbod_operation(op, block_buf);
+      jbod_client_operation(op, block_buf);
     }
 
     curr_size = 0;
@@ -158,7 +165,8 @@ int mdadm_write(uint32_t addr, uint32_t len, const uint8_t *buf) {
     seek(disk_num, block_num);
     
     op = encode_op(JBOD_WRITE_BLOCK, 0, 0);
-    jbod_operation(op, block_buf);
+    //jbod_operation(op, block_buf);
+    jbod_client_operation(op, block_buf);
     
     fake_offset += curr_size;
     current_addr += curr_size;
